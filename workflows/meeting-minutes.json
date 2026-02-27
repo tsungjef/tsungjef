@@ -1,0 +1,120 @@
+{
+  "name": "LocalAI Meeting Minutes Demo",
+  "nodes": [
+    {
+      "parameters": {},
+      "id": "manual-trigger",
+      "name": "Manual Trigger",
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [
+        240,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "keepOnlySet": true,
+        "values": {
+          "string": [
+            {
+              "name": "transcript",
+              "value": "今天會議重點：1) 產品A下週三上線。2) Alice 負責對外公告，截止 2026-03-05。3) Bob 負責監控儀表板，截止 2026-03-07。4) 風險是流量尖峰造成延遲。"
+            },
+            {
+              "name": "systemPrompt",
+              "value": "你是企業會議記錄助理，請使用繁體中文，只輸出合法 JSON。"
+            }
+          ]
+        }
+      },
+      "id": "set-input",
+      "name": "Set Transcript",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 2,
+      "position": [
+        500,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{($env.LOCALAI_BASE_URL || 'http://localai:8080/v1') + '/chat/completions'}}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ { model: 'meeting-llm', temperature: 0.2, messages: [ { role: 'system', content: $json.systemPrompt }, { role: 'user', content: $json.transcript } ] } }}"
+      },
+      "id": "call-localai",
+      "name": "Call LocalAI",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        760,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const content = $json.choices?.[0]?.message?.content || '{}';\nlet parsed;\ntry {\n  parsed = JSON.parse(content);\n} catch (e) {\n  parsed = { raw: content, parse_error: true };\n}\nreturn [{ json: { summary_json: parsed } }];"
+      },
+      "id": "parse-output",
+      "name": "Parse JSON",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1020,
+        300
+      ]
+    }
+  ],
+  "connections": {
+    "Manual Trigger": {
+      "main": [
+        [
+          {
+            "node": "Set Transcript",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Set Transcript": {
+      "main": [
+        [
+          {
+            "node": "Call LocalAI",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Call LocalAI": {
+      "main": [
+        [
+          {
+            "node": "Parse JSON",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "1"
+}
